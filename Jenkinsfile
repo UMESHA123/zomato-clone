@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         // Registry configuration
-        DOCKER_REGISTRY = 'your-docker-registry.com'
+        DOCKER_REGISTRY = 'docker.io/umesa123'
         DOCKER_CREDENTIALS_ID = 'docker-registry-credentials'
         
         // Versioning
@@ -73,7 +73,7 @@ pipeline {
         stage('Push Docker Images') {
             steps {
                 script {
-                    withDockerRegistry(credentialsId: DOCKER_CREDENTIALS_ID, url: "https://${DOCKER_REGISTRY}") {
+                    withDockerRegistry(credentialsId: DOCKER_CREDENTIALS_ID, url: 'https://index.docker.io/v1/') {
                         def services = [
                             'api-gateway', 'user-service', 'restaurant-service', 'order-service',
                             'delivery-service', 'payment-service', 'notification-service', 'chat-service',
