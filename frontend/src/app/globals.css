@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --animate-fade-in: fadeIn 0.5s ease-out both;
+  --animate-fade-in-up: fadeInUp 0.5s ease-out both;
+  --animate-fade-in-down: fadeInDown 0.3s ease-out both;
+  --animate-scale-in: scaleIn 0.3s ease-out both;
+  --animate-slide-up: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-down: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-bounce-in: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) both;
+  --animate-cart-pop: cartPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-shimmer: shimmer 1.5s infinite;
+  --animate-float: float 3s ease-in-out infinite;
+  --animate-hero-text: heroText 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-stagger-1: fadeInUp 0.5s ease-out 0.1s both;
+  --animate-stagger-2: fadeInUp 0.5s ease-out 0.2s both;
+  --animate-stagger-3: fadeInUp 0.5s ease-out 0.3s both;
+  --animate-stagger-4: fadeInUp 0.5s ease-out 0.4s both;
+  --animate-stagger-5: fadeInUp 0.5s ease-out 0.5s both;
+  --animate-stagger-6: fadeInUp 0.5s ease-out 0.6s both;
+  --animate-pulse-soft: pulseSoft 2s ease-in-out infinite;
+  --animate-wiggle: wiggle 0.5s ease-in-out;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ─── Keyframes ─── */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounceIn {
+  from { opacity: 0; transform: scale(0.3); }
+  50% { transform: scale(1.05); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes cartPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes heroText {
+  from { opacity: 0; transform: translateY(30px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes pulseSoft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes confettiBurst {
+  0% { opacity: 1; transform: scale(0) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.2) rotate(180deg); }
+  100% { opacity: 0; transform: scale(0.8) rotate(360deg); }
+}
+
+/* ─── Utility Classes ─── */
+
+/* Shimmer skeleton effect */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(229 231 235 / 0.6) 25%,
+    rgb(229 231 235 / 1) 37%,
+    rgb(229 231 235 / 0.6) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(39 39 42 / 0.6) 25%,
+    rgb(63 63 70 / 1) 37%,
+    rgb(39 39 42 / 0.6) 63%
+  );
+  background-size: 200% 100%;
+}
+
+/* Image zoom on hover */
+.img-zoom {
+  overflow: hidden;
+}
+.img-zoom img,
+.img-zoom > div {
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.img-zoom:hover img,
+.img-zoom:hover > div {
+  transform: scale(1.08);
+}
+
+/* Card lift on hover */
+.card-hover {
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              box-shadow 0.3s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px -12px rgb(0 0 0 / 0.15);
+}
+
+/* Glassmorphism */
+.glass {
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background: rgb(255 255 255 / 0.85);
+}
+
+.dark .glass {
+  background: rgb(24 24 27 / 0.85);
+}
+
+/* Smooth scrollbar */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Gradient text */
+.text-gradient {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Button press effect */
+.btn-press {
+  transition: transform 0.1s ease;
+}
+.btn-press:active {
+  transform: scale(0.96);
+}

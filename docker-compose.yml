@@ -1,0 +1,428 @@
+services:
+  # ==================== Infrastructure ====================
+  postgres:
+    image: postgres:16-alpine
+    container_name: zomato-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-zomato}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zomato_secret}
+      POSTGRES_DB: zomato_users
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+      - ./docker/postgres/init-health-check.sql:/docker-entrypoint-initdb.d/init-health-check.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zomato"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zomato-network
+
+  health-check-db-init:
+    image: postgres:16-alpine
+    container_name: zomato-health-check-db-init
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-zomato_secret}
+    command:
+      [
+        "sh",
+        "-c",
+        "until pg_isready -h postgres -U ${POSTGRES_USER:-zomato}; do sleep 2; done; psql -h postgres -U ${POSTGRES_USER:-zomato} -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'zomato_health'\" | grep -q 1 || psql -h postgres -U ${POSTGRES_USER:-zomato} -d postgres -c \"CREATE DATABASE zomato_health\""
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - zomato-network
+
+  mongodb:
+    image: mongo:7
+    container_name: zomato-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-zomato}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-zomato_secret}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "mongodb://zomato:zomato_secret@localhost:27017/admin?authSource=admin",
+          "--eval",
+          "db.adminCommand('ping')"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zomato-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: zomato-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-zomato_secret}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "zomato_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zomato-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: zomato-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-zomato}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-zomato_secret}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zomato-network
+
+  # ==================== Application Services ====================
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: zomato-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      API_GATEWAY_PORT: 8080
+      USER_SERVICE_URL: http://user-service:8081
+      RESTAURANT_SERVICE_URL: http://restaurant-service:8082
+      ORDER_SERVICE_URL: http://order-service:8083
+      DELIVERY_SERVICE_URL: http://delivery-service:8084
+      PAYMENT_SERVICE_URL: http://payment-service:8085
+      NOTIFICATION_SERVICE_URL: http://notification-service:8086
+      CHAT_SERVICE_URL: http://chat-service:8087
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-zomato_secret}
+      FRONTEND_CUSTOMER_URL: http://frontend-customer:3000
+      FRONTEND_RESTAURANT_URL: http://frontend-restaurant:3001
+      FRONTEND_DRIVER_URL: http://frontend-driver:3002
+      FRONTEND_AGENT_URL: http://frontend-agent:3003
+    labels:
+      - "monitoring=true"
+      - "service=api-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - zomato-network
+
+  user-service:
+    build: ./services/user-service
+    container_name: zomato-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-zomato}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zomato_secret}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-zomato}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-zomato_secret}
+      JWT_SECRET: ${JWT_SECRET:-zomato-jwt-secret-change-in-production}
+    labels:
+      - "monitoring=true"
+      - "service=user-service"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - zomato-network
+
+  restaurant-service:
+    build: ./services/restaurant-service
+    container_name: zomato-restaurant-service
+    ports:
+      - "8082:8082"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-zomato}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zomato_secret}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-zomato}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-zomato_secret}
+    labels:
+      - "monitoring=true"
+      - "service=restaurant-service"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - zomato-network
+
+  order-service:
+    build: ./services/order-service
+    container_name: zomato-order-service
+    ports:
+      - "8083:8083"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-zomato}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zomato_secret}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-zomato}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-zomato_secret}
+    labels:
+      - "monitoring=true"
+      - "service=order-service"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - zomato-network
+
+  delivery-service:
+    build: ./services/delivery-service
+    container_name: zomato-delivery-service
+    ports:
+      - "8084:8084"
+    environment:
+      DELIVERY_SERVICE_PORT: 8084
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      MONGO_USER: ${MONGO_USER:-zomato}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:-zomato_secret}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-zomato}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-zomato_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-zomato_secret}
+    labels:
+      - "monitoring=true"
+      - "service=delivery-service"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - zomato-network
+
+  payment-service:
+    build: ./services/payment-service
+    container_name: zomato-payment-service
+    ports:
+      - "8085:8085"
+    environment:
+      PAYMENT_SERVICE_PORT: 8085
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-zomato}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zomato_secret}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-zomato}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-zomato_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-zomato_secret}
+    labels:
+      - "monitoring=true"
+      - "service=payment-service"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - zomato-network
+
+  notification-service:
+    build: ./services/notification-service
+    container_name: zomato-notification-service
+    ports:
+      - "8086:8086"
+    environment:
+      NOTIFICATION_SERVICE_PORT: 8086
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-zomato}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-zomato_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-zomato_secret}
+    labels:
+      - "monitoring=true"
+      - "service=notification-service"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - zomato-network
+
+  chat-service:
+    build: ./services/chat-service
+    container_name: zomato-chat-service
+    ports:
+      - "8087:8087"
+    environment:
+      CHAT_SERVICE_PORT: 8087
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      MONGO_USER: ${MONGO_USER:-zomato}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:-zomato_secret}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-zomato}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-zomato_secret}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      FRONTEND_CUSTOMER_URL: http://frontend-customer:3000
+      FRONTEND_AGENT_URL: http://frontend-agent:3003
+    labels:
+      - "monitoring=true"
+      - "service=chat-service"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - zomato-network
+
+  frontend-customer:
+    build: ./frontend-customer
+    container_name: zomato-frontend-customer
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: http://api-gateway:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    depends_on:
+      - api-gateway
+    networks:
+      - zomato-network
+
+  frontend-restaurant:
+    build: ./frontend-restaurant
+    container_name: zomato-frontend-restaurant
+    ports:
+      - "3001:3001"
+    environment:
+      API_URL: http://api-gateway:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      PORT: "3001"
+    depends_on:
+      - api-gateway
+    networks:
+      - zomato-network
+
+  frontend-driver:
+    build: ./frontend-driver
+    container_name: zomato-frontend-driver
+    ports:
+      - "3002:3002"
+    environment:
+      API_URL: http://api-gateway:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      PORT: "3002"
+    depends_on:
+      - api-gateway
+    networks:
+      - zomato-network
+
+  frontend-agent:
+    build: ./frontend-agent
+    container_name: zomato-frontend-agent
+    ports:
+      - "3003:3003"
+    environment:
+      API_URL: http://api-gateway:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_CHAT_SERVICE_URL: http://localhost:8087
+      PORT: "3003"
+    depends_on:
+      - api-gateway
+      - chat-service
+    networks:
+      - zomato-network
+
+  health-check-ui:
+    build: ./health-check-ui
+    container_name: zomato-health-check-ui
+    ports:
+      - "3004:3004"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-zomato}:${POSTGRES_PASSWORD:-zomato_secret}@postgres:5432/zomato_health
+      PORT: "3004"
+      EMAIL_USER: ${EMAIL_USER:-uumesharameshahugger@gmail.com}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      EMAIL_TO: ${EMAIL_TO:-uumesharameshahugger@gmail.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      health-check-db-init:
+        condition: service_completed_successfully
+      api-gateway:
+        condition: service_started
+      user-service:
+        condition: service_started
+      restaurant-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+      delivery-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      chat-service:
+        condition: service_started
+      frontend-customer:
+        condition: service_started
+      frontend-restaurant:
+        condition: service_started
+      frontend-driver:
+        condition: service_started
+      frontend-agent:
+        condition: service_started
+    networks:
+      - zomato-network
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  zomato-network:
+    driver: bridge
+    name: zomato-clone_zomato-network

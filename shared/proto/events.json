@@ -1,0 +1,28 @@
+{
+  "exchanges": {
+    "order.exchange": {
+      "type": "topic",
+      "routingKeys": ["order.created", "order.updated", "order.cancelled"]
+    },
+    "payment.exchange": {
+      "type": "topic",
+      "routingKeys": ["payment.completed", "payment.failed"]
+    },
+    "delivery.exchange": {
+      "type": "topic",
+      "routingKeys": ["delivery.assigned", "delivery.picked_up", "delivery.completed"]
+    },
+    "user.exchange": {
+      "type": "topic",
+      "routingKeys": ["user.registered"]
+    },
+    "restaurant.exchange": {
+      "type": "topic",
+      "routingKeys": ["restaurant.created", "restaurant.updated", "menu.updated"]
+    },
+    "chat.exchange": {
+      "type": "topic",
+      "routingKeys": ["chat.escalated", "chat.resolved"]
+    }
+  }
+}
