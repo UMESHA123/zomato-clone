@@ -91,6 +91,15 @@ graph TD;
 - **Redis**: In-memory data structuring acting as rapid session caches and rate limiters.
 - **RabbitMQ**: The message broker empowering asynchronous microservice chatter (Event-Driven mapping).
 
+### 📊 Observability & Monitoring
+A comprehensive monitoring stack is wired into the cluster to track performance and aggregate logs efficiently. It is spun up independently using `docker-compose.monitoring.yml`.
+- **Prometheus (`:9090`)**: Scrapes and stores time-series metrics from microservices.
+- **Grafana (`:3005`)**: Data visualization and custom operational dashboards.
+- **Loki (`:3100`)**: Horizontally scalable log aggregation system.
+- **Promtail**: Daemon agent that ships local logs straight into Loki.
+- **Node Exporter (`:9100`)**: Hardware and OS metrics exporter.
+- **Dynatrace OneAgent**: Full-stack application performance monitoring (APM) wrapper (Environment variables required).
+
 ---
 
 ## 🚀 Getting Started
