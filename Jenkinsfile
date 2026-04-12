@@ -33,49 +33,8 @@ pipeline {
         }
 
         stage('Code Quality & Tests') {
-            parallel {
-               stage('Frontend: Customer') {
-                    steps {
-                        dir('frontend-customer') {
-                            sh 'npm ci || npm install'
-                            sh 'npm run lint || echo "No lint script found"'
-                            // sh 'npm run test'
-                        }
-                    }
-                }
-                stage('Frontend: Restaurant') {
-                    steps {
-                        dir('frontend-restaurant') {
-                            sh 'npm ci || npm install'
-                            sh 'npm run lint || echo "No lint script found"'
-                        }
-                    }
-                }
-                stage('Frontend: Driver') {
-                    steps {
-                        dir('frontend-driver') {
-                            sh 'npm ci || npm install'
-                            sh 'npm run lint || echo "No lint script found"'
-                        }
-                    }
-                }
-                stage('Frontend: Agent') {
-                    steps {
-                        dir('frontend-agent') {
-                            sh 'npm ci || npm install'
-                            sh 'npm run lint || echo "No lint script found"'
-                        }
-                    }
-                }
-                stage('Backend: User Service') {
-                    steps {
-                        dir('services/user-service') {
-                            sh 'npm ci || npm install'
-                            sh 'npm run lint || echo "No lint script found"'
-                        }
-                    }
-                }
-                // More services can be added here
+            steps {
+                echo "Skipping native local tests. In this architecture, all linting and test validations are integrated into the multi-stage Dockerfile builds. If tests fail, the Docker build will automatically fail."
             }
         }
 
