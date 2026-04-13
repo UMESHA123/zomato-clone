@@ -58,3 +58,32 @@ groups:
         annotations:
           summary: "Event loop lag high on {{ $labels.job }}"
           description: "{{ $labels.job }} event loop lag above 500ms for more than 2 minutes."
+
+  - name: infrastructure_services
+    rules:
+      - alert: DatabaseDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL Database is down"
+          description: "Postgres database has been down for more than 1 minute."
+
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Cache is down"
+          description: "Redis instance has been down for more than 1 minute."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% for more than 5 minutes on {{ $labels.instance }}."

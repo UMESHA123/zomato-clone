@@ -1,11 +1,5 @@
 pipeline {
-    agent {
-        label 'docker'  // Use a labeled agent with Docker installed
-    }
-
-    tools {
-        jdk 'jdk-21'    // Ensure JDK 21 is configured in Jenkins Global Tool Configuration
-    }
+    agent any
 
     environment {
         SERVICE_NAME    = '__SERVICE_NAME__'
@@ -13,6 +7,7 @@ pipeline {
         DOCKER_REGISTRY = 'docker.io/umesa123'
         DOCKER_CREDS    = 'docker-registry-credentials'
         IMAGE_TAG       = "${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
+        FULL_IMAGE      = "${DOCKER_REGISTRY}/zomato-${SERVICE_NAME}"
         DOCKER_BUILDKIT = '1'
         MAVEN_OPTS      = '-Dmaven.repo.local=.m2/repository'
     }
@@ -39,9 +34,6 @@ pipeline {
                     env.GIT_AUTHOR    = sh(script: "git log -1 --pretty=format:'%an'", returnStdout: true).trim()
                     env.GIT_MSG       = sh(script: "git log -1 --pretty=format:'%s'",  returnStdout: true).trim()
                     env.GIT_SHORT     = env.GIT_COMMIT.take(7)
-                    env.IS_MAIN       = (env.BRANCH_NAME == 'main') ? 'true' : 'false'
-                    env.IS_PR         = (env.CHANGE_ID != null) ? 'true' : 'false'
-                    env.FULL_IMAGE    = "${DOCKER_REGISTRY}/zomato-${SERVICE_NAME}"
                 }
             }
         }

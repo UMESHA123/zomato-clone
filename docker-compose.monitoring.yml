@@ -1,6 +1,19 @@
 services:
   # ==================== Monitoring Stack ====================
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: zomato-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    networks:
+      - zomato-network
+    restart: unless-stopped
+
   # Prometheus - Metrics collection and storage
   prometheus:
     image: prom/prometheus:v2.51.0
