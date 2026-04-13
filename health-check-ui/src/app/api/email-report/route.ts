@@ -20,24 +20,32 @@ export async function POST() {
     const emailPass = process.env.EMAIL_PASSWORD;
     const emailTo = process.env.EMAIL_TO || "uumesharameshahugger@gmail.com";
 
-    if (!emailPass) {
-      return NextResponse.json(
-        {
-          error:
-            "EMAIL_PASSWORD environment variable is not set. Please set a Gmail App Password. " +
-            "Go to Google Account > Security > 2-Step Verification > App Passwords to generate one.",
-        },
-        { status: 500 },
-      );
-    }
+    let transporter;
+    let senderEmail = emailUser;
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
-    });
+    if (emailPass) {
+      transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: emailUser,
+          pass: emailPass,
+        },
+      });
+    } else {
+      console.log("No EMAIL_PASSWORD found. Generating a temporary Ethereal test account...");
+      const testAccount = await nodemailer.createTestAccount();
+      senderEmail = testAccount.user;
+      
+      transporter = nodemailer.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+    }
 
     const html = generateEmailHtml(payload);
 
@@ -51,16 +59,23 @@ export async function POST() {
     const statusEmoji = totalUnhealthy === 0 ? "✅" : "⚠️";
     const subject = `${statusEmoji} Sentinel Health Report — ${overallRate}% Health Rate (${totalHealthy} pass, ${totalUnhealthy} fail)`;
 
-    await transporter.sendMail({
-      from: `"Sentinel Monitor" <${emailUser}>`,
+    const info = await transporter.sendMail({
+      from: `"Sentinel Monitor" <${senderEmail}>`,
       to: emailTo,
       subject,
       html,
     });
 
+    let previewUrlMessage = "";
+    if (!emailPass) {
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      console.log("Email Test Preview URL:", previewUrl);
+      previewUrlMessage = ` View the test email safely here: ${previewUrl}`;
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Health report sent successfully to ${emailTo}`,
+      message: `Health report sent successfully to ${emailTo}.${previewUrlMessage}`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to send email report";

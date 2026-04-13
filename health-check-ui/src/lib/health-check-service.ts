@@ -673,14 +673,12 @@ async function executeRun(runId: string) {
       console.error("Alert evaluation failed:", alertError);
     }
 
-    // Auto-send email report if EMAIL_PASSWORD is set
-    if (process.env.EMAIL_PASSWORD) {
-      try {
-        const port = process.env.PORT || "3004";
-        await fetch(`http://localhost:${port}/api/email-report`, { method: "POST" });
-      } catch (emailError) {
-        console.error("Failed to auto-send email report:", emailError);
-      }
+    // Auto-send email report (will use Ethereal dummy account if EMAIL_PASSWORD is missing)
+    try {
+      const port = process.env.PORT || "3004";
+      await fetch(`http://localhost:${port}/api/email-report`, { method: "POST" });
+    } catch (emailError) {
+      console.error("Failed to auto-send email report:", emailError);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown health-check failure";
