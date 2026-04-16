@@ -1,15 +1,16 @@
 #!/bin/bash
 #
-# Production deployment script for the Zomato platform
-# Runs on the production/staging server
+# Production-grade deployment script for the Zomato platform
+# Supports multi-environment deployments (dev, qa, prod)
 #
 # Usage:
-#   ./deploy.sh [all|service-name] [image-tag]
+#   ./deploy.sh [all|service-name] [image-tag] [environment]
 #
 # Examples:
-#   ./deploy.sh all latest              # Deploy all services with latest tag
-#   ./deploy.sh user-service 42-abc1234 # Deploy specific service with specific tag
-#   ./deploy.sh all                     # Deploy all with latest
+#   ./deploy.sh all latest prod              # Deploy all to production
+#   ./deploy.sh user-service 42-abc1234 qa   # Deploy one service to QA
+#   ./deploy.sh all dev-15-def5678 dev       # Deploy all to dev
+#   ./deploy.sh all                          # Deploy all with latest to prod (default)
 #
 
 set -euo pipefail
@@ -19,15 +20,36 @@ DEPLOY_DIR="/opt/zomato"
 DOCKER_REGISTRY="docker.io/umesa123"
 SERVICE="${1:-all}"
 IMAGE_TAG="${2:-latest}"
-COMPOSE_FILE="${DEPLOY_DIR}/docker-compose.prod.yml"
-ENV_FILE="${DEPLOY_DIR}/.env"
+ENVIRONMENT="${3:-prod}"
+
+# Validate environment
+case "${ENVIRONMENT}" in
+    dev|qa|prod) ;;
+    *)
+        echo "ERROR: Invalid environment '${ENVIRONMENT}'. Must be: dev, qa, prod"
+        exit 1
+        ;;
+esac
+
+# Environment-specific compose file
+case "${ENVIRONMENT}" in
+    dev)  COMPOSE_FILE="${DEPLOY_DIR}/docker-compose.yml" ;;
+    qa)   COMPOSE_FILE="${DEPLOY_DIR}/docker-compose.qa.yml" ;;
+    prod) COMPOSE_FILE="${DEPLOY_DIR}/docker-compose.prod.yml" ;;
+esac
+
+ENV_FILE="${DEPLOY_DIR}/.env.${ENVIRONMENT}"
+# Fallback to .env if environment-specific file doesn't exist
+if [ ! -f "${ENV_FILE}" ]; then
+    ENV_FILE="${DEPLOY_DIR}/.env"
+fi
+
 LOG_DIR="${DEPLOY_DIR}/logs"
-LOG_FILE="${LOG_DIR}/deploy-$(date +%Y%m%d).log"
+LOG_FILE="${LOG_DIR}/deploy-${ENVIRONMENT}-$(date +%Y%m%d).log"
 HEALTH_CHECK_TIMEOUT=60
 HEALTH_CHECK_INTERVAL=5
 
 # ---- Service definitions in deployment order ----
-# Infrastructure services are managed separately (always running)
 BACKEND_SERVICES=(
     api-gateway
     user-service
@@ -87,13 +109,13 @@ declare -A HEALTH_PATHS=(
 mkdir -p "${LOG_DIR}"
 
 log() {
-    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] [${ENVIRONMENT}] $1"
     echo "${msg}"
     echo "${msg}" >> "${LOG_FILE}"
 }
 
 log_error() {
-    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $1"
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] [${ENVIRONMENT}] ERROR: $1"
     echo "${msg}" >&2
     echo "${msg}" >> "${LOG_FILE}"
 }
@@ -119,7 +141,7 @@ preflight() {
 
     if [ ! -f "${ENV_FILE}" ]; then
         log_error ".env file not found: ${ENV_FILE}"
-        log_error "Copy .env.example to .env and configure it first"
+        log_error "Copy .env.example to ${ENV_FILE} and configure it first"
         exit 1
     fi
 
@@ -139,8 +161,13 @@ compose() {
 update_env() {
     local key="$1"
     local value="$2"
-    if grep -q "^${key}=" "${ENV_FILE}"; then
-        sed -i "s|^${key}=.*|${key}=${value}|" "${ENV_FILE}"
+    if grep -q "^${key}=" "${ENV_FILE}" 2>/dev/null; then
+        # Use compatible sed for both macOS and Linux
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|^${key}=.*|${key}=${value}|" "${ENV_FILE}"
+        else
+            sed -i "s|^${key}=.*|${key}=${value}|" "${ENV_FILE}"
+        fi
     else
         echo "${key}=${value}" >> "${ENV_FILE}"
     fi
@@ -183,7 +210,7 @@ deploy_service() {
     local tag="$2"
 
     log ""
-    log "--- Deploying ${svc}:${tag} ---"
+    log "--- Deploying ${svc}:${tag} to ${ENVIRONMENT} ---"
 
     # Record current image for rollback reference
     local current_image
@@ -200,7 +227,7 @@ deploy_service() {
 
     # Health check
     if wait_for_healthy "${svc}"; then
-        log "  ${svc} deployed successfully."
+        log "  ${svc} deployed successfully to ${ENVIRONMENT}."
         return 0
     else
         log_error "${svc} deployment may have failed. Check logs:"
@@ -214,10 +241,12 @@ deploy_service() {
 echo ""
 log "============================================"
 log "  Zomato Platform Deployment"
-log "  Target:  ${SERVICE}"
-log "  Tag:     ${IMAGE_TAG}"
-log "  Time:    $(date)"
-log "  User:    $(whoami)"
+log "  Environment: ${ENVIRONMENT}"
+log "  Target:      ${SERVICE}"
+log "  Tag:         ${IMAGE_TAG}"
+log "  Time:        $(date)"
+log "  User:        $(whoami)"
+log "  Compose:     ${COMPOSE_FILE}"
 log "============================================"
 
 preflight
@@ -231,6 +260,13 @@ cd "${DEPLOY_DIR}"
 FAILED_SERVICES=()
 
 if [ "${SERVICE}" = "all" ]; then
+    # Ensure infrastructure is running first
+    log ""
+    log "=== Phase 0: Infrastructure Services ==="
+    compose up -d postgres mongodb redis rabbitmq 2>&1 | tee -a "${LOG_FILE}"
+    log "  Waiting for infrastructure to be healthy..."
+    sleep 10
+
     log ""
     log "=== Phase 1: Backend Services ==="
     for svc in "${BACKEND_SERVICES[@]}"; do
@@ -275,7 +311,7 @@ docker image prune -f >> "${LOG_FILE}" 2>&1
 # ---- Summary ----
 log ""
 log "============================================"
-log "  Deployment Summary"
+log "  Deployment Summary (${ENVIRONMENT})"
 log "============================================"
 compose ps 2>&1 | tee -a "${LOG_FILE}"
 
@@ -283,9 +319,9 @@ if [ ${#FAILED_SERVICES[@]} -gt 0 ]; then
     log ""
     log_error "FAILED SERVICES: ${FAILED_SERVICES[*]}"
     log_error "Check logs: ${LOG_FILE}"
-    log_error "Rollback with: ./rollback.sh <service-name> <previous-tag>"
+    log_error "Rollback with: ./rollback.sh <service-name> <previous-tag> ${ENVIRONMENT}"
     exit 1
 else
     log ""
-    log "All deployments successful!"
+    log "All deployments successful in ${ENVIRONMENT}!"
 fi

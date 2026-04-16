@@ -1,22 +1,28 @@
-version: '3.8'
-
 services:
   jenkins:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: zomato-ci-jenkins
-    user: root # Essential to access /var/run/docker.sock in some environments
     ports:
-      - "8089:8080" # Avoid conflict with API Gateway which runs on 8080
+      - "8089:8080"
       - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
-      # Mount the Docker socket to allow Jenkins to communicate with the host's Docker daemon
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - JENKINS_OPTS="--prefix=/jenkins"
+      JAVA_OPTS: >-
+        -Xmx2g
+        -Xms512m
+        -Djava.awt.headless=true
+      JENKINS_OPTS: --prefix=/jenkins
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/jenkins/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
 
 volumes:
   jenkins_home:
