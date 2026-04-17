@@ -102,7 +102,6 @@ update_service_repo() {
 # ---- Java Services ----
 echo ""
 echo "========== Java Services =========="
-update_service_repo "api-gateway"          "java-service"
 update_service_repo "user-service"         "java-service"
 update_service_repo "restaurant-service"   "java-service"
 update_service_repo "order-service"        "java-service"
@@ -110,6 +109,7 @@ update_service_repo "order-service"        "java-service"
 # ---- Node Services ----
 echo ""
 echo "========== Node Services =========="
+update_service_repo "api-gateway"          "node-service"
 update_service_repo "delivery-service"     "node-service"
 update_service_repo "payment-service"      "node-service"
 update_service_repo "notification-service" "node-service"
